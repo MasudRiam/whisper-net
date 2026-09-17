@@ -1,28 +1,37 @@
 import mongoose from "mongoose";
 
-type connectionObject = {
-    isConnected? : number;
+type ConnectionObject = {
+  isConnected?: number;
+};
+
+// Cache connection in global scope to survive HMR / serverless re-use
+const globalWithMongoose = globalThis as unknown as {
+  _mongooseConnection?: ConnectionObject;
+};
+if (!globalWithMongoose._mongooseConnection) {
+  globalWithMongoose._mongooseConnection = {} as ConnectionObject;
 }
-
-const connection: connectionObject = {};
-
+const connection: ConnectionObject = globalWithMongoose._mongooseConnection;
 
 async function dbConnect(): Promise<void> {
-    if (connection.isConnected) {
-        console.log ("MongoDB already connected");
-        return
-    }
+  if (connection.isConnected) {
+    return;
+  }
 
-    try {
-        const db = await mongoose.connect (process.env.MONGODB_URI || '', {})
-        connection.isConnected = db.connections[0].readyState
+  const uri = process.env.MONGODB_URI;
+  if (!uri) {
+    throw new Error("MONGODB_URI is not defined in environment variables");
+  }
 
-        console.log ("DB connection is successfuly")
-    } catch (error) {
-        console.log ("DB connection is fail", error);
-
-        process.exit (1)
-    }
+  try {
+    const db = await mongoose.connect(uri, {
+      maxPoolSize: 10,
+    });
+    connection.isConnected = db.connections[0].readyState;
+  } catch (error) {
+    console.error("DB connection failed", error);
+    throw new Error("Database connection failed");
+  }
 }
 
 export default dbConnect;

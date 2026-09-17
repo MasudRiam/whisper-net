@@ -4,24 +4,24 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { useForm } from 'react-hook-form'
 import * as z from 'zod'
 import { useEffect, useState } from 'react'
-import { useDebounceCallback } from 'usehooks-ts'
+import { useDebounceValue } from 'usehooks-ts'
 import axios, {AxiosError} from 'axios'
 import { toast } from "sonner"
 import { useRouter } from 'next/navigation'
 import { LoaderCircle } from 'lucide-react'
 import { signUpValidation } from '@/schemas/signUpSchema'
 import { ApiResponse } from '@/type/apiResponse'
-import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 
 const Page = () => {
-  const [ username, setUsername ] = useState('')
-  const [ usernameMessage, setUsernameMessage ] = useState('')
-  const [ isCheckingUsername, setIsCheckingUsername ] = useState(false)
+  const [usernameInput, setUsernameInput] = useState('')
+  const [debouncedUsername] = useDebounceValue(usernameInput, 500)
+  const [usernameMessage, setUsernameMessage] = useState('')
+  const [isUsernameAvailable, setIsUsernameAvailable] = useState<boolean | null>(null)
+  const [isCheckingUsername, setIsCheckingUsername] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
-
- const debounced = useDebounceCallback(setUsername, 500)
 
   const router = useRouter()
 
@@ -36,25 +36,34 @@ const Page = () => {
 
 
   useEffect (() => {
-    const checkUsernameUniqe = async () => {
-      if (username) {
-        setIsCheckingUsername (true)
+    let cancelled = false;
+    const checkUsernameUnique = async () => {
+      if (!debouncedUsername) {
         setUsernameMessage('')
-          try {
-          const res = await axios.get(`/api/check-username-unique?username=${username}`)
-          const message = res.data.message;
-
-          setUsernameMessage(message)
-          } catch (error) {
-            const axiosError = error as AxiosError<ApiResponse>;
-            setUsernameMessage(axiosError.response?.data.message ?? 'Username is not available.');
-          } finally {
-            setIsCheckingUsername(false)
-          }
+        setIsUsernameAvailable(null)
+        return
       }
+      setIsCheckingUsername (true)
+      setUsernameMessage('')
+        try {
+        const res = await axios.get(`/api/check-username-unique?username=${encodeURIComponent(debouncedUsername)}`)
+        if (cancelled) return;
+        const message = res.data.message;
+
+        setUsernameMessage(message)
+        setIsUsernameAvailable(true)
+        } catch (error) {
+          if (cancelled) return;
+          const axiosError = error as AxiosError<ApiResponse>;
+          setUsernameMessage(axiosError.response?.data.message ?? 'Username is not available.');
+          setIsUsernameAvailable(false)
+        } finally {
+          if (!cancelled) setIsCheckingUsername(false)
+        }
     }
-    checkUsernameUniqe()
-  }, [username])
+    checkUsernameUnique()
+    return () => { cancelled = true }
+  }, [debouncedUsername])
 
 
   const onSubmit = async (data: z.infer<typeof signUpValidation>) => {
@@ -62,7 +71,7 @@ const Page = () => {
     try {
       const res = await axios.post('/api/sign-up', data)
       toast.success(res.data.message)
-      router.push (`/verify/${encodeURIComponent(username)}`)
+      router.push(`/verify/${encodeURIComponent(data.username)}`)
     } catch (error) {
       const axiosError = error as AxiosError<ApiResponse>;
       toast.error(axiosError.response?.data.message ?? 'An error occurred during sign up.')
@@ -72,11 +81,11 @@ const Page = () => {
   }
 
   return (
-    <div className='flex justify-center items-center min-h-screen bg-gray-100 dark:bg-gray-950'>
-      <div className='w-full max-w-md p-8 space-y-8 bg-white rounded-lg shadow-md dark:bg-gray-800 dark:text-white'>
+    <div className='flex justify-center items-center min-h-[calc(100vh-4rem)] bg-background px-4 py-10'>
+      <div className='w-full max-w-md p-8 space-y-8 bg-card text-card-foreground rounded-lg shadow-md border'>
         <div className='text-center'>
-          <h1 className='text-2xl font-bold tracking-tight lg:text-5xl mb-6'>Join True Message</h1>
-          <p className='mb-4'>Create an account to start messaging</p>
+          <h1 className='text-2xl font-bold tracking-tight lg:text-4xl mb-3'>Join WhisperNet</h1>
+          <p className='text-muted-foreground'>Create an account to start messaging</p>
         </div>
 
         <Form {...form}>
@@ -88,16 +97,23 @@ const Page = () => {
             <FormItem>
               <FormLabel>Username</FormLabel>
               <FormControl>
-                <Input placeholder="username" {...field}
+                <Input placeholder="Choose a username" autoComplete="username" {...field}
                 onChange={(e) => {
                   field.onChange(e)
-                    setUsername(e.target.value);
-                  debounced(e.target.value)
+                  setUsernameInput(e.target.value);
                 }}
                 />
               </FormControl>
-                {isCheckingUsername && <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />}
-                <p className={`text-sm ${usernameMessage === 'Valid username' ? 'text-green-500' : 'text-red-500'}`}>{usernameMessage}</p>
+                <div aria-live="polite" role="status" className="min-h-[1.25rem]">
+                  {isCheckingUsername && (
+                    <span className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <LoaderCircle className="h-4 w-4 animate-spin" /> Checking username...
+                    </span>
+                  )}
+                  {!isCheckingUsername && usernameMessage && (
+                    <p className={`text-sm ${isUsernameAvailable ? 'text-green-600 dark:text-green-400' : 'text-red-500'}`}>{usernameMessage}</p>
+                  )}
+                </div>
               <FormMessage />
             </FormItem>
           )}
@@ -111,7 +127,7 @@ const Page = () => {
             <FormItem>
               <FormLabel>Email</FormLabel>
               <FormControl>
-                <Input placeholder="email" {...field}
+                <Input type="email" placeholder="you@example.com" autoComplete="email" {...field}
                 />
               </FormControl>
               <FormMessage />
@@ -127,22 +143,33 @@ const Page = () => {
             <FormItem>
               <FormLabel>Password</FormLabel>
               <FormControl>
-                <Input type='password' placeholder="password" {...field}
+                <Input type='password' placeholder="At least 6 characters" autoComplete="new-password" {...field}
                 />
               </FormControl>
               <FormMessage />
             </FormItem>
           )}
         />
-        <Button type="submit" disabled={isSubmitting}>
+        <Button type="submit" className="w-full" disabled={isSubmitting || isCheckingUsername}>
           {
             isSubmitting ? (
               <>
               <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />
+              Please wait...
               </>
             ) : ('Sign Up')
           }
         </Button>
+        <p className="text-sm text-center text-muted-foreground">
+          Already have an account?{' '}
+          <button
+            type="button"
+            onClick={() => router.push('/sign-in')}
+            className="text-primary font-medium hover:underline"
+          >
+            Sign in
+          </button>
+        </p>
           </form>
         </Form>
 

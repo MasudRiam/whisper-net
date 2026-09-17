@@ -7,14 +7,26 @@ import { ApiResponse } from "@/type/apiResponse";
 
 export async function sendEmailVerification(username: string, email: string, Code: string): Promise<ApiResponse> {
   try {
-    await resend.emails.send({
-      from: 'onboarding@resend.dev',
+    if (!email || !username || !Code) {
+      return { success: false, message: "Missing email parameters" };
+    }
+
+    const from = process.env.EMAIL_FROM || "onboarding@resend.dev";
+
+    const result = await resend.emails.send({
+      from,
       to: email,
-      subject: 'User Verification OTP',
-      react: VerificationEmailTemplate({username, otp: Code}),
+      subject: "Verify your WhisperNet account",
+      react: VerificationEmailTemplate({ username, otp: Code }),
     });
 
-
+    if (result.error) {
+      console.error("Resend API error:", result.error);
+      return {
+        success: false,
+        message: "Failed to send verification email. Please try again later.",
+      };
+    }
 
     return {
       success: true,

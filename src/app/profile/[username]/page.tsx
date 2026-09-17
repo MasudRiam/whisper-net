@@ -19,21 +19,22 @@ import { CardHeader, CardContent, Card } from '@/components/ui/card';
 const specialChar = '||';
 
 const parseStringMessages = (messageString: string): string[] => {
-    return messageString.split(specialChar).map(msg => msg.trim()); // Split and trim any extra spaces
+    return messageString.split(specialChar).map(msg => msg.trim()).filter(Boolean);
 };
-
 
 
 
 const Page = () => {
     const [aiMessages, setAiMessages] = useState<string[]>([]);
-    const [MessageLoading, setMessageLoading] = useState(false);
+    const [messageLoading, setMessageLoading] = useState(false);
 
     const params = useParams<{ username: string }>();
-    const username = params.username;
+    const rawUsername = params.username;
+    const username = rawUsername ? decodeURIComponent(rawUsername) : "";
 
     const form = useForm<z.infer<typeof messageValidation>>({
         resolver: zodResolver(messageValidation),
+        defaultValues: { content: "" },
     });
 
 
@@ -47,10 +48,10 @@ const Page = () => {
                 username,
                 ...data,
             });
-            toast(response.data.message, {
-                description: 'Your message was received.',
+            toast.success(response.data.message, {
+                description: 'Your anonymous message was sent.',
             });
-            form.reset({ ...form.getValues(), content: '' });
+            form.reset({ content: '' });
         } catch (error) {
             const axiosError = error as AxiosError<ApiResponse>;
                 toast.error(axiosError.response?.data.message ?? 'Failed to send message', {
@@ -63,31 +64,35 @@ const Page = () => {
 
 
         const fetchSuggestedMessages = async () => {
+        setMessageLoading(true);
         try {
-            setMessageLoading(true);
             const response = await axios.post('/api/suggest-messages');
-            const messageString = response.data.message;
+            const messageString = response.data.message as string;
             const parsedMessages = parseStringMessages(messageString);
             setAiMessages(parsedMessages);
-            setMessageLoading(false);
         } catch (error) {
             console.error('Error fetching messages:', error);
-            toast.error('Failed to fetch messages', {
+            toast.error('Failed to fetch suggestions', {
                 description: 'There was an error while fetching suggested messages.',
             });
+        } finally {
+            setMessageLoading(false);
         }
     };
 
     const handleMessageClick = (message: string) => {
-        form.setValue('content', message);
+        form.setValue('content', message, { shouldValidate: true, shouldDirty: true });
     };
 
 
  return (
-        <div className="container mx-auto my-8 p-6 relative bg-gray-100 rounded max-w-4xl h-screen dark:bg-gray-950">
-            <h1 className="text-4xl font-bold mb-6 text-center">
-                Public Profile Link
+        <div className="container mx-auto my-8 p-6 bg-card text-card-foreground rounded-lg border shadow-sm max-w-4xl min-h-[calc(100vh-8rem)]">
+            <h1 className="text-4xl font-bold mb-2 text-center">
+                Send an anonymous message
             </h1>
+            <p className="text-center text-muted-foreground mb-6">
+              to @{username || "..."}
+            </p>
             <Form {...form}>
                 <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
                     <FormField
@@ -98,83 +103,80 @@ const Page = () => {
                                 <FormLabel>Send Anonymous Message to @{username}</FormLabel>
                                 <FormControl>
                                     <Textarea
-                                        placeholder="Write your anonymous message here"
-                                        className="resize-none"
+                                        placeholder="Write your anonymous message here (max 300 characters)"
+                                        className="resize-none min-h-[120px]"
+                                        maxLength={300}
                                         {...field}
                                     />
                                 </FormControl>
-                                <FormMessage />
+                                <div className="flex justify-between text-xs text-muted-foreground">
+                                  <FormMessage />
+                                  <span aria-live="polite">{messageContent?.length ?? 0}/300</span>
+                                </div>
                             </FormItem>
                         )}
                     />
                     <div className="flex justify-center w-full">
-                        {isLoading ? (
-                            <Button className='w-full' disabled>
+                        <Button
+                            className="w-full"
+                            type="submit"
+                            disabled={isLoading || !messageContent?.trim()}
+                        >
+                            {isLoading ? (
+                              <>
                                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                Please wait
-                            </Button>
-                        ) : (
-                            <Button
-                                className={`
-                                    w-full
-                                    px-4 py-2
-                                    text-white
-                                    font-semibold
-                                    rounded-xl
-                                    bg-gradient-to-r from-blue-500 to-indigo-600
-                                    hover:from-blue-600 hover:to-indigo-700
-                                    disabled:opacity-50 disabled:cursor-not-allowed
-                                    shadow-md
-                                    transition duration-300 ease-in-out
-                                `}
-                                type="submit"
-                                disabled={isLoading || !messageContent}
-                                >
-                                {isLoading ? 'Sending...' : '🚀 Send It'}
-                            </Button>
-                        )}
+                                Sending...
+                              </>
+                            ) : (
+                              "Send message"
+                            )}
+                        </Button>
                     </div>
                 </form>
             </Form>
 
             <div className="space-y-4 my-8 mt-10">
-                <Card className="dark:bg-black border-none">
-                    <CardHeader className="text-center text-2xl font-semibold">
-                        Click on any message below to select it.
+                <Card>
+                    <CardHeader className="text-center text-xl font-semibold">
+                        Need inspiration? Click a suggestion to use it.
                     </CardHeader>
-                    <CardContent className="flex flex-col space-y-2 max-sm:space-y-4">
-
-                        {aiMessages.length > 0 ? (
+                    <CardContent className="flex flex-col gap-2">
+                        {messageLoading ? (
+                          <p className="flex items-center justify-center gap-2 text-sm text-muted-foreground py-4">
+                            <Loader2 className="h-4 w-4 animate-spin" /> Generating suggestions...
+                          </p>
+                        ) : aiMessages.length > 0 ? (
                             aiMessages.map((message, index) => (
                                 <Button
-                                    key={index}
+                                    key={`${index}-${message.slice(0, 20)}`}
                                     variant="outline"
-                                    className='w-full text-wrap max-sm:h-16'
+                                    className='h-auto min-h-12 w-full whitespace-normal break-words text-left justify-start px-4 py-3'
                                     onClick={() => handleMessageClick(message)}
                                 >
                                     {message}
                                 </Button>
                             ))
                         ) : (
-                            <p className="text-gray-500">No messages available. Try suggesting some!</p>
+                            <p className="text-muted-foreground text-sm text-center py-2">No suggestions yet. Click &quot;Suggest Messages&quot; below.</p>
                         )}
                     </CardContent>
                 </Card>
-                <div className="space-y-2 w-full">
-                    {isLoading ? (
-                        <Button disabled className="my-4 w-full text-white bg-blue-700 hover:bg-blue-800">
+                <div className="w-full">
+                    <Button
+                        onClick={fetchSuggestedMessages}
+                        className="my-4 w-full"
+                        variant="secondary"
+                        disabled={messageLoading}
+                    >
+                        {messageLoading ? (
+                          <>
                             <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                            Suggesting
-                        </Button>
-                    ) : (
-                        <Button
-                            onClick={fetchSuggestedMessages}
-                            className="my-4 w-full text-white bg-blue-700 hover:bg-blue-800"
-                            disabled={isLoading}
-                        >
-                            Suggest Messages
-                        </Button>
-                    )}
+                            Suggesting...
+                          </>
+                        ) : (
+                          "Suggest Messages"
+                        )}
+                    </Button>
                 </div>
             </div>
         </div>

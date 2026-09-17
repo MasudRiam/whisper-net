@@ -30,7 +30,7 @@ export default function VerificationEmailTemplate({ username, otp }: OtpEmailPro
             {otp}
           </Text>
           <Text style={{ fontSize: '14px', color: '#888888' }}>
-            This code will expire in 5 minutes. Please don’t share it with anyone.
+            This code will expire in 10 minutes. Please don’t share it with anyone.
           </Text>
         </Container>
       </Body>

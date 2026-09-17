@@ -3,6 +3,7 @@ import { NextAuthOptions } from "next-auth";
 import bcrypt from "bcryptjs";
 import dbConnect from "@/lib/dbConnect";
 import UserModel from "@/model/User";
+import { signInValidation } from "@/schemas/signInSchema";
 
 
 
@@ -12,16 +13,22 @@ providers: [
         id: "credentials",
         name: "Credentials",
          credentials: {
-        email: { label: "Email", type: "text"},
+        identifier: { label: "Email / Username", type: "text" },
         password: { label: "Password", type: "password" }
     },
-    async authorize (credentials: any): Promise<any> {
+    async authorize (credentials: Record<"identifier" | "password", string> | undefined): Promise<any> {
         await dbConnect();
 
         try {
+            const parsed = signInValidation.safeParse(credentials);
+            if (!parsed.success) {
+                throw new Error("Email/username and password are required");
+            }
+            const { identifier, password } = parsed.data;
+
             const user = await UserModel.findOne({
-                $or: [{ email: credentials.identifier },
-                { username: credentials.identifier }]
+                $or: [{ email: identifier.toLowerCase().trim() },
+                { username: identifier.trim() }]
             });
 
             if (!user) {
@@ -29,18 +36,21 @@ providers: [
             }
 
             if (!user.isActive) {
-                throw new Error("Please activate your account before logging in");
+                throw new Error("Please verify your account before logging in");
             }
 
-            const isPasswordCorrect = await bcrypt.compare (credentials.password, user.password);
+            const isPasswordCorrect = await bcrypt.compare (password, user.password);
 
             if (isPasswordCorrect) {
                 return user;
             } else {
                 throw new Error("Invalid password");
             }
-        } catch (err: any) {
-            throw new Error(err);
+        } catch (err: unknown) {
+            if (err instanceof Error) {
+                throw new Error(err.message);
+            }
+            throw new Error("Authentication failed");
         }
 
     }
@@ -58,10 +68,10 @@ callbacks: {
         },
         async session({ session, token }) {
             if (token) {
-                session.user._id = token.id?.toString();
-                session.user.username = token.username;
-                session.user.isActive = token.isActive;
-                session.user.isAcceptingMessage = token.isAcceptingMessage;
+                session.user._id = token.id as string;
+                session.user.username = token.username as string;
+                session.user.isActive = token.isActive as boolean;
+                session.user.isAcceptingMessage = token.isAcceptingMessage as boolean;
             }
             return session;
         }

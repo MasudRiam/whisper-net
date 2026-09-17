@@ -3,25 +3,28 @@ import { authOptions } from "../../auth/[...nextauth]/option";
 import UserModel from "@/model/User";
 import dbConnect from "@/lib/dbConnect";
 import { NextRequest } from "next/server";
+import mongoose from "mongoose";
 import { User } from "next-auth";
-
-
 
 export async function DELETE(
   request: NextRequest,
-   context: any
+  { params }: { params: Promise<{ messageid: string }> }
 ) {
-  const messageid = context.params.messageid as string;
-
   await dbConnect();
 
   const session = await getServerSession(authOptions);
-  const user = session?.user as User;
+  const user = session?.user as User | undefined;
 
-  if (!session || !session.user) {
+  if (!session || !session.user || !user?._id) {
+    return Response.json({ success: false, message: "Unauthorized" }, { status: 401 });
+  }
+
+  const { messageid } = await params;
+
+  if (!messageid || !mongoose.Types.ObjectId.isValid(messageid)) {
     return Response.json(
-      { success: false, message: "Unauthorized" },
-      { status: 401 }
+      { success: false, message: "Invalid message id" },
+      { status: 400 }
     );
   }
 

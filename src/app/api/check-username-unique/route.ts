@@ -48,11 +48,10 @@ export async function GET(request: Request) {
             message: "Valid username"
         });
     } catch (error) {
-
-
+        console.error("Error checking username uniqueness:", error);
         return Response.json({
             success: false,
-            message: "Invalid request"
+            message: "Internal server error"
         }, {
             status: 500
         })

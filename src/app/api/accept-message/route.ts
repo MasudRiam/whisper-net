@@ -4,12 +4,19 @@ import UserModel from "@/model/User";
 import dbConnect from "@/lib/dbConnect";
 import { User } from "next-auth";
 
+async function getUserIdFromSession() {
+  const session = await getServerSession(authOptions);
+  if (!session?.user) return { session: null, userId: null };
+  const user = session.user as User;
+  return { session, userId: user._id };
+}
+
 export async function POST(request: Request) {
   await dbConnect();
 
-  const session = await getServerSession(authOptions);
+  const { userId } = await getUserIdFromSession();
 
-  if (!session || !session.user) {
+  if (!userId) {
     return Response.json(
       {
         success: false,
@@ -21,19 +28,27 @@ export async function POST(request: Request) {
     );
   }
 
-  const user = session.user as User;
-  const userId = user._id;
-
-  const { isAcceptingMessage } = await request.json();
-
-  console.log(`User ID: ${userId}, Accepting Messages: ${isAcceptingMessage}`);
-
   try {
+    const body = await request.json();
+    const { isAcceptingMessage } = body ?? {};
+
+    if (typeof isAcceptingMessage !== "boolean") {
+      return Response.json(
+        {
+          success: false,
+          message: "isAcceptingMessage must be a boolean",
+        },
+        {
+          status: 400,
+        }
+      );
+    }
+
     const updatedUser = await UserModel.findByIdAndUpdate(
       userId,
       { isAcceptingMessage },
-      { new: true }
-    );
+      { new: true, runValidators: true }
+    ).select("-password -verifyCode -verifyCodeExpire");
 
     if (!updatedUser) {
       return Response.json(
@@ -51,13 +66,14 @@ export async function POST(request: Request) {
       {
         success: true,
         message: `User is now ${isAcceptingMessage ? "accepting" : "not accepting"} messages`,
-        updatedUser,
+        isAcceptingMessage: updatedUser.isAcceptingMessage,
       },
       {
         status: 200,
       }
     );
   } catch (error) {
+    console.error("Error updating accept-message status:", error);
     return Response.json(
       {
         success: false,
@@ -68,6 +84,11 @@ export async function POST(request: Request) {
       }
     );
   }
+}
+
+// PATCH alias for semantic correctness (POST kept for backwards-compat)
+export async function PATCH(request: Request) {
+  return POST(request);
 }
 
 export async function GET() {
@@ -91,7 +112,9 @@ export async function GET() {
   const userId = user._id;
 
   try {
-    const foundUser = await UserModel.findById(userId);
+    const foundUser = await UserModel.findById(userId).select(
+      "isAcceptingMessage"
+    );
 
     if (!foundUser) {
       return Response.json(
@@ -111,6 +134,7 @@ export async function GET() {
       message: "User found",
     });
   } catch (error) {
+    console.error("Error fetching accept-message status:", error);
     return Response.json(
       {
         success: false,

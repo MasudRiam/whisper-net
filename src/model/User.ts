@@ -2,7 +2,7 @@ import mongoose, {Schema, Document} from "mongoose";
 
 
 
-export interface Message extends Document {
+export interface Message {
     _id: string;
     content: string;
     createdAt: Date;
@@ -11,7 +11,9 @@ export interface Message extends Document {
 const MessageSchema: Schema<Message> = new Schema ({
     content: {
         type: String,
-        required: true
+        required: [true, "Message content is required"],
+        trim: true,
+        maxlength: [500, "Message must be at most 500 characters"]
     },
     createdAt: {
         type: Date,
@@ -42,8 +44,10 @@ const UserSchema: Schema<User> = new Schema ({
     },
     email: {
         type: String,
-        required: [true, "Username is required"],
+        required: [true, "Email is required"],
         unique: true,
+        trim: true,
+        lowercase: true,
         match: [/^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/, 'please use valid email']
     },
     password: {
@@ -57,7 +61,7 @@ const UserSchema: Schema<User> = new Schema ({
     },
     verifyCodeExpire: {
         type: Date,
-        required: [true, "verifyCode is required"],
+        required: false,
     },
     isActive: {
         type: Boolean,
@@ -70,6 +74,9 @@ const UserSchema: Schema<User> = new Schema ({
     messages: [MessageSchema] 
 
 
+},
+{
+    timestamps: true
 })
 
 const UserModel  = (mongoose.models.User as mongoose.Model<User>) || mongoose.model<User>("User", UserSchema);

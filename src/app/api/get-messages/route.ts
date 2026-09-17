@@ -5,57 +5,86 @@ import dbConnect from "@/lib/dbConnect";
 import mongoose from "mongoose";
 import { User } from "next-auth";
 
-export async function GET(request: Request) {
+export async function GET() {
+  await dbConnect();
 
-    await dbConnect();
-    
-    const session = await getServerSession(authOptions);
-    const user = session?.user as User;
+  const session = await getServerSession(authOptions);
+  const sessionUser = session?.user as User | undefined;
 
-    if (!session || !session.user) {
-        return Response.json({
-            success: false,
-            message: "Unauthorized"
-        }, {
-            status: 401
-        });
+  if (!session || !session.user || !sessionUser?._id) {
+    return Response.json(
+      {
+        success: false,
+        message: "Unauthorized",
+      },
+      {
+        status: 401,
+      }
+    );
+  }
+
+  try {
+    if (!mongoose.Types.ObjectId.isValid(sessionUser._id)) {
+      return Response.json(
+        { success: false, message: "Invalid user id" },
+        { status: 400 }
+      );
     }
+    const userId = new mongoose.Types.ObjectId(sessionUser._id);
 
-    const userId = new mongoose.Types.ObjectId(user._id);
+    //mongodb aggregation to get messages
+    const result = await UserModel.aggregate([
+      { $match: { _id: userId } },
+      { $unwind: { path: "$messages", preserveNullAndEmptyArrays: true } },
+      { $sort: { "messages.createdAt": -1 } },
+      {
+        $group: {
+          _id: "$_id",
+          messages: {
+            $push: {
+              $cond: [
+                { $ifNull: ["$messages._id", false] },
+                "$messages",
+                "$$REMOVE",
+              ],
+            },
+          },
+        },
+      },
+    ]);
 
-    try {
-        //moongodb aggregation to get messages
-        const user = await UserModel.aggregate ([
-            {$match: { _id: userId }},
-            {$unwind: "$messages" },
-            {$sort: { "messages.createdAt": -1 }},
-            {$group: {_id: "$_id", messages: { $push: "$messages" } }},
-        ])
-
-        if (!user || user.length === 0) {
-            return Response.json({
-                success: false,
-                message: "No messages found"
-            }, {
-                status: 404
-            });
+    if (!result || result.length === 0) {
+      // User exists but aggregation found nothing (should be rare) -> empty inbox
+      return Response.json(
+        {
+          success: true,
+          messages: [],
+        },
+        {
+          status: 200,
         }
-
-        return Response.json({
-            success: true,
-            messages: user[0].messages
-        }, {
-            status: 200
-        });
-
-
-    } catch (error) {
-        console.error("Error fetching messages:", error);
-        return Response.json({
-            success: false,
-            message: "Internal Server Error"
-        }, {
-            status: 500
-        });
+      );
     }
-}   
+
+    return Response.json(
+      {
+        success: true,
+        messages: result[0].messages ?? [],
+      },
+      {
+        status: 200,
+      }
+    );
+  } catch (error) {
+    console.error("Error fetching messages:", error);
+    return Response.json(
+      {
+        success: false,
+        message: "Internal Server Error",
+      },
+      {
+        status: 500,
+      }
+    );
+  }
+}

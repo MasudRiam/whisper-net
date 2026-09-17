@@ -9,15 +9,18 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import axios, { AxiosError } from 'axios'
 import { useParams } from 'next/navigation'
 import { useRouter } from 'next/navigation'
-import React from 'react'
+import React, { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { toast } from 'sonner'
+import { Loader2 } from 'lucide-react'
 import * as z from 'zod'
 
 const Page = () => {
     const router = useRouter()
     const params = useParams()
-    const username = params.username as string;
+    const rawUsername = params.username as string | undefined;
+    const username = rawUsername ? decodeURIComponent(rawUsername) : "";
+    const [isSubmitting, setIsSubmitting] = useState(false)
 
     const form = useForm<z.infer<typeof verifyValidation>> ({
         resolver: zodResolver(verifyValidation),
@@ -27,19 +30,18 @@ const Page = () => {
       })
     
     const onSubmit = async (data: z.infer<typeof verifyValidation>) => {
+        if (!username) {
+          toast.error("Username is missing in the URL");
+          return;
+        }
+        setIsSubmitting(true)
         try {
-
-              if (!username) {
-              toast.error("Username is missing in the URL");
-              return;
-            }
-
             const response = await axios.post<ApiResponse>('/api/verify-code', {
-                username: decodeURIComponent(username),
-                code: data.code
+                username,
+                code: data.code.trim()
             })
 
-        toast.success("Success", {
+        toast.success("Verified", {
         description: response.data.message
         })
         router.replace('/sign-in')
@@ -48,35 +50,53 @@ const Page = () => {
         } catch (error) {
           console.log ("Error occurred while verifying code:", error);
             const axiosError = error as AxiosError<ApiResponse>;
-            toast.error(axiosError.response?.data.message ?? 'An error occurred during sign up.')
+            toast.error(axiosError.response?.data.message ?? 'An error occurred during verification.')
             
+        } finally {
+          setIsSubmitting(false)
         }
     }
 
   return (
-    <div className='flex justify-center items-center min-h-screen bg-gray-100 dark:bg-gray-950'>
-        <div className='w-full max-w-md p-8 space-y-8 bg-white rounded-lg shadow-md dark:bg-gray-800 dark:text-white'>
-            <div className='text-center'>
-                <h1 className='text-3xl font-bold tracking-tight lg:text-5xl mb-6'>Verify Your Account</h1>
-                <p className='mb-4 text-2xl'>Enter the verification code sent to your email</p>
+    <div className='flex justify-center items-center min-h-[calc(100vh-4rem)] bg-background px-4 py-10'>
+        <div className='w-full max-w-md p-8 space-y-8 bg-card text-card-foreground rounded-lg shadow-md border'>
+            <div className='text-center space-y-2'>
+                <h1 className='text-2xl font-bold tracking-tight lg:text-4xl'>Verify Your Account</h1>
+                <p className='text-muted-foreground'>Enter the 6-digit code sent to your email{username ? <> for <span className="font-semibold text-foreground">@{username}</span></> : ""}</p>
             </div>
 
             <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
+      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
         <FormField
           name="code"
           control={form.control}
           render={({ field }) => (
             <FormItem>
-              <FormLabel className='text-lg'>Verification Code</FormLabel>
+              <FormLabel>Verification Code</FormLabel>
               <FormControl>
-                <Input placeholder="Enter your code" {...field} />
+                <Input
+                  placeholder="123456"
+                  inputMode="numeric"
+                  maxLength={6}
+                  autoComplete="one-time-code"
+                  className="text-center tracking-[0.3em]"
+                  {...field}
+                />
               </FormControl>
               <FormMessage />
             </FormItem>
           )}
         />
-        <Button type="submit">Submit</Button>
+        <Button type="submit" className="w-full" disabled={isSubmitting || !username}>
+          {isSubmitting ? (
+            <>
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              Verifying...
+            </>
+          ) : (
+            "Verify account"
+          )}
+        </Button>
       </form>
     </Form>
 

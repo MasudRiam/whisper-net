@@ -5,10 +5,14 @@ import { useForm } from 'react-hook-form'
 import * as z from 'zod'
 import { toast } from "sonner"
 import { useRouter } from 'next/navigation'
+import { useState } from 'react'
+import { useSession } from 'next-auth/react'
+import { useEffect } from 'react'
+import { Loader2 } from 'lucide-react'
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
-import { signInvalidation } from '@/schemas/signInSchema'
+import { signInValidation } from '@/schemas/signInSchema'
 import { signIn } from 'next-auth/react'
 
 
@@ -18,9 +22,17 @@ import { signIn } from 'next-auth/react'
 const Page = () => {
 
   const router = useRouter()
+  const { status } = useSession()
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
-  const form = useForm<z.infer<typeof signInvalidation>> ({
-    resolver: zodResolver(signInvalidation),
+  useEffect(() => {
+    if (status === "authenticated") {
+      router.replace("/dashboard")
+    }
+  }, [status, router])
+
+  const form = useForm<z.infer<typeof signInValidation>> ({
+    resolver: zodResolver(signInValidation),
     defaultValues: {
       identifier: '',
       password: '',
@@ -28,30 +40,41 @@ const Page = () => {
   })
 
 
-  const onSubmit = async (data: z.infer<typeof signInvalidation>) => {
-      const result = await signIn ('credentials', {
-        identifier: data.identifier,
-        password: data.password,
-        redirect: false,
-      })
-
-      if (result?.error) {
-        toast ('Login faild', {
-          description: result.error
+  const onSubmit = async (data: z.infer<typeof signInValidation>) => {
+      setIsSubmitting(true)
+      try {
+        const result = await signIn ('credentials', {
+          identifier: data.identifier,
+          password: data.password,
+          redirect: false,
         })
-      }
-      if (result?.url) {
-        router.replace ('/dashboard')
+
+        if (result?.error) {
+          toast.error('Login failed', {
+            description: result.error
+          })
+          return
+        }
+        if (result?.ok) {
+          toast.success("Welcome back!")
+          router.replace ('/dashboard')
+        } else {
+          toast.error("Login failed", {
+            description: "Unexpected response, please try again."
+          })
+        }
+      } finally {
+        setIsSubmitting(false)
       }
   }
 
 
   return (
-    <div className='flex justify-center items-center min-h-screen bg-gray-100 dark:bg-gray-800'>
-      <div className='w-full max-w-md p-8 space-y-8 bg-white rounded-lg shadow-md dark:bg-gray-800 dark:text-white'>
+    <div className='flex justify-center items-center min-h-[calc(100vh-4rem)] bg-background px-4 py-10'>
+      <div className='w-full max-w-md p-8 space-y-8 bg-card text-card-foreground rounded-lg shadow-md border'>
         <div className='text-center'>
-          <h1 className='text-2xl font-bold tracking-tight lg:text-5xl mb-6 text-black dark:text-white'>Join True Message</h1>
-          <p className='mb-4'>Sign in to your account</p>
+          <h1 className='text-2xl font-bold tracking-tight lg:text-4xl mb-3'>Welcome back</h1>
+          <p className='text-muted-foreground'>Sign in to your WhisperNet account</p>
         </div>
 
         <Form {...form}>
@@ -64,7 +87,7 @@ const Page = () => {
             <FormItem>
               <FormLabel>Email/Username</FormLabel>
               <FormControl>
-                <Input placeholder="email/Username" {...field}
+                <Input placeholder="Email or username" autoComplete="username" {...field}
                 />
               </FormControl>
               <FormMessage />
@@ -80,25 +103,32 @@ const Page = () => {
             <FormItem>
               <FormLabel>Password</FormLabel>
               <FormControl>
-                <Input type='password' placeholder="password" {...field}
+                <Input type='password' placeholder="Your password" autoComplete="current-password" {...field}
                 />
               </FormControl>
               <FormMessage />
             </FormItem>
           )}
         />
-          <div className="flex justify-between items-center gap-4">
-            <Button type="submit" className="w-full">
-              Sign in
+          <div className="flex flex-col gap-3">
+            <Button type="submit" className="w-full" disabled={isSubmitting}>
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Signing in...
+                </>
+              ) : (
+                "Sign in"
+              )}
             </Button>
            
            
-            <p className="text-sm text-center text-muted-foreground mt-2">
+            <p className="text-sm text-center text-muted-foreground">
   Don’t have an account?{' '}
   <button
     type="button"
     onClick={() => router.push('/sign-up')}
-    className="text-blue-600 hover:underline dark:text-blue-400"
+    className="text-primary font-medium hover:underline"
   >
     Register here
   </button>

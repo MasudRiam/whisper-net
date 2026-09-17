@@ -11,46 +11,58 @@ import { MoonStar, SunMedium } from "lucide-react"
 
 const Navbar = () => {
   const { data: session } = useSession()
-  const user = session?.user as User
+  const user = session?.user as User | undefined
 
-    const { theme, setTheme } = useTheme()
-    const [mounted, setMounted] = useState(false)
+  const { resolvedTheme, setTheme } = useTheme()
+  const [mounted, setMounted] = useState(false)
 
-    useEffect(() => {
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setMounted(true)
   }, [])
 
-  const isDark = theme === "dark"
+  const isDark = resolvedTheme === "dark"
+  const displayName = user?.username || user?.name || user?.email
 
   return (
-    <nav className='p-4 md:p-6 shadow-md'>
-        <div className='container mx-auto flex flex-col md:flex-row justify-between items-center'>
-            <a className='text-xl font-bold mb-4 md:mb-0' href="#">True Message</a>
-            { session ? (
-                <>
-                <span className='mr-4'>Welcome {user?.name || user?.email}</span>
-                <button className='w-full md:w-auto px-6 py-2 rounded-2xl bg-gradient-to-r from-red-500 to-pink-500 text-white font-semibold shadow-md hover:shadow-lg transition-all duration-300 hover:scale-105' onClick={() => signOut()}>Sign Out</button>
-                </>
-            ): (
-                <Link href='/sign-in'>
-                    <button className='w-full md:w-auto px-6 py-2 rounded-2xl bg-gradient-to-r from-red-500 to-pink-500 text-white font-semibold shadow-md hover:shadow-lg transition-all duration-300 hover:scale-105'>Sign In</button>
-                </Link>
-            )}
-                {mounted && (
+    <nav className='sticky top-0 z-50 border-b bg-background/80 backdrop-blur supports-[backdrop-filter]:bg-background/60'>
+      <div className='container mx-auto flex flex-col gap-3 px-4 py-3 md:flex-row md:items-center md:justify-between md:gap-4 md:p-6'>
+        <Link className='text-xl font-bold' href="/">WhisperNet</Link>
+        <div className='flex flex-col gap-2 md:flex-row md:items-center md:gap-3'>
+          {session ? (
+            <>
+              {displayName && (
+                <span className='text-sm text-muted-foreground truncate max-w-[220px]'>Welcome, {displayName}</span>
+              )}
+              <Button
+                className='w-full md:w-auto'
+                onClick={() => signOut({ callbackUrl: "/sign-in" })}
+              >
+                Sign Out
+              </Button>
+            </>
+          ) : (
+            <Button asChild className='w-full md:w-auto'>
+              <Link href='/sign-in'>Sign In</Link>
+            </Button>
+          )}
+          {mounted && (
             <Button
               variant="outline"
               size="icon"
+              aria-label="Toggle theme"
               onClick={() => setTheme(isDark ? "light" : "dark")}
-              className="transition-all"
+              className="transition-all self-start md:self-auto"
             >
               {isDark ? (
                 <SunMedium className="h-5 w-5 text-yellow-400" />
               ) : (
-                <MoonStar className="h-5 w-5 text-blue-900" />
+                <MoonStar className="h-5 w-5 text-blue-900 dark:text-blue-200" />
               )}
             </Button>
-                )}
+          )}
         </div>
+      </div>
     </nav>
   )
 }

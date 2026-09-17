@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getToken } from 'next-auth/jwt';
 
-export async function middleware(request: NextRequest) {
+export default async function proxy(request: NextRequest) {
   const token = await getToken({ req: request });
   const url = request.nextUrl;
 
@@ -16,9 +16,10 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(new URL('/dashboard', request.url));
   }
 
-
   if (!token && isProtectedPage) {
-    return NextResponse.redirect(new URL('/sign-in', request.url));
+    const signInUrl = new URL('/sign-in', request.url);
+    signInUrl.searchParams.set('callbackUrl', url.pathname);
+    return NextResponse.redirect(signInUrl);
   }
 
   return NextResponse.next();
@@ -28,7 +29,6 @@ export const config = {
   matcher: [
     '/sign-in',
     '/sign-up',
-    '/',
     '/dashboard/:path*',
     '/verify/:path*',
   ],
