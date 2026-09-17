@@ -32,11 +32,18 @@ export const metadata: Metadata = {
     title: "WhisperNet — Anonymous Messaging",
     description: "Get honest anonymous messages from your friends.",
     type: "website",
+    images: ["/logo.png"],
   },
   twitter: {
     card: "summary_large_image",
     title: "WhisperNet — Anonymous Messaging",
     description: "Get honest anonymous messages from your friends.",
+    images: ["/logo.png"],
+  },
+  icons: {
+    icon: [{ url: "/logo.png", type: "image/png" }],
+    apple: [{ url: "/logo.png" }],
+    shortcut: "/logo.png",
   },
   robots: {
     index: true,
