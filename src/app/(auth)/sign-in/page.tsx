@@ -111,6 +111,22 @@ const Page = () => {
           )}
         />
           <div className="flex flex-col gap-3">
+            <div className="rounded-md border border-dashed px-3 py-2 text-center">
+              <p className="text-xs text-muted-foreground">
+                Demo credentials: <span className="font-mono font-medium">admin12</span> /{' '}
+                <span className="font-mono font-medium">password</span>
+              </p>
+              <button
+                type="button"
+                onClick={() => {
+                  form.setValue('identifier', 'admin12')
+                  form.setValue('password', 'password')
+                }}
+                className="mt-1 text-xs text-primary font-medium hover:underline"
+              >
+                Fill demo credentials
+              </button>
+            </div>
             <Button type="submit" className="w-full" disabled={isSubmitting}>
               {isSubmitting ? (
                 <>
