@@ -104,16 +104,18 @@ const Page = () => {
                 }}
                 />
               </FormControl>
-                <div aria-live="polite" role="status" className="min-h-[1.25rem]">
-                  {isCheckingUsername && (
-                    <span className="flex items-center gap-2 text-sm text-muted-foreground">
-                      <LoaderCircle className="h-4 w-4 animate-spin" /> Checking username...
-                    </span>
-                  )}
-                  {!isCheckingUsername && usernameMessage && (
-                    <p className={`text-sm ${isUsernameAvailable ? 'text-green-600 dark:text-green-400' : 'text-red-500'}`}>{usernameMessage}</p>
-                  )}
-                </div>
+                {(isCheckingUsername || (!isCheckingUsername && usernameMessage)) && (
+                  <div aria-live="polite" role="status">
+                    {isCheckingUsername && (
+                      <span className="flex items-center gap-2 text-sm text-muted-foreground">
+                        <LoaderCircle className="h-4 w-4 animate-spin" /> Checking username...
+                      </span>
+                    )}
+                    {!isCheckingUsername && usernameMessage && (
+                      <p className={`text-sm ${isUsernameAvailable ? 'text-green-600 dark:text-green-400' : 'text-red-500'}`}>{usernameMessage}</p>
+                    )}
+                  </div>
+                )}
               <FormMessage />
             </FormItem>
           )}
