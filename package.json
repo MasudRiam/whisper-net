@@ -4,11 +4,10 @@
   "author": "Masud Parvez Riam <masudp.riam@gmail.com>",
   "private": true,
   "engines": {
-    "node": ">=26.9.0",
-    "npm": ">=11"
+    "node": "24.x"
   },
   "volta": {
-    "node": "26.9.0"
+    "node": "24"
   },
   "scripts": {
     "dev": "next dev --turbopack",
